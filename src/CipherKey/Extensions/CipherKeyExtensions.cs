@@ -57,6 +57,9 @@ namespace Microsoft.AspNetCore.Authentication
             var configOptions = new CipherKeySchemeOptions();
             configureOptions?.Invoke(configOptions);
 
+            // Add policy
+            services.AddPolicy(authenticationScheme, configOptions);
+
             // Add fallback policy
             services.AddFallbackPolicy(configOptions);
 
@@ -102,6 +105,9 @@ namespace Microsoft.AspNetCore.Authentication
             var configOptions = new CipherKeySchemeOptions();
             configureOptions?.Invoke(configOptions);
 
+            // Add policy
+            services.AddPolicy(authenticationScheme, configOptions);
+
             // Add fallback policy
             services.AddFallbackPolicy(configOptions);
 
@@ -139,6 +145,42 @@ namespace Microsoft.AspNetCore.Authentication
             }
 
             services.AddRequiredScopeAuthorization();
+        }
+
+        private static void AddPolicy(this IServiceCollection services, string authenticationScheme,
+            CipherKeySchemeOptions configureOptions)
+        {
+            if (configureOptions.AllowOrigins?.Length is null or 0
+                && configureOptions.AllowMethods?.Length is null or 0)
+            {
+                return;
+            }
+
+            services.Configure<CipherKeySchemeOptions>(authenticationScheme, o => o.PolicyName = authenticationScheme);
+
+            services.AddCors(options =>
+            {
+                options.AddPolicy(authenticationScheme, policy =>
+                {
+                    if (configureOptions.AllowOrigins?.Length > 0)
+                    {
+                        policy.WithOrigins(configureOptions.AllowOrigins);
+                    }
+                    else
+                    {
+                        policy.AllowAnyOrigin();
+                    }
+
+                    if (configureOptions.AllowMethods?.Length > 0)
+                    {
+                        policy.WithMethods(configureOptions.AllowMethods);
+                    }
+                    else
+                    {
+                        policy.AllowAnyMethod();
+                    }
+                });
+            });
         }
     }
 }
