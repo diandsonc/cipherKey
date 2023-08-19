@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Identity.Web;
 
 namespace CipherKey.Utils
 {
@@ -17,7 +18,8 @@ namespace CipherKey.Utils
         /// <param name="claimsIssuer">The claims issuer.</param>
         /// <param name="scope">The token scope.</param>
         /// <returns></returns>
-        internal static ClaimsPrincipal BuildPrincipal(string? ownerName, string? schemeName, string claimsIssuer)
+        internal static ClaimsPrincipal BuildPrincipal(string? ownerName, string? schemeName, string claimsIssuer,
+            string? scope)
         {
             if (string.IsNullOrWhiteSpace(schemeName))
             {
@@ -33,6 +35,11 @@ namespace CipherKey.Utils
                     new Claim(ClaimTypes.NameIdentifier, ownerName, ClaimValueTypes.String, claimsIssuer),
                     new Claim(ClaimTypes.Name, ownerName, ClaimValueTypes.String, claimsIssuer)
                 });
+            }
+
+            if (!string.IsNullOrEmpty(scope))
+            {
+                identity.AddClaim(new Claim(ClaimConstants.Scp, scope, ClaimValueTypes.String, claimsIssuer));
             }
 
             return new ClaimsPrincipal(identity);

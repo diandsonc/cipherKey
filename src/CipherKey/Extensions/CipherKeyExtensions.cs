@@ -2,6 +2,7 @@ using CipherKey;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Identity.Web;
 
 namespace Microsoft.AspNetCore.Authentication
 {
@@ -52,6 +53,12 @@ namespace Microsoft.AspNetCore.Authentication
             services.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IPostConfigureOptions<CipherKeySchemeOptions>, PostConfigureOptions>());
 
+            var configOptions = new CipherKeySchemeOptions();
+            configureOptions?.Invoke(configOptions);
+
+            // Add required scope authorization.
+            services.AddScopeAuthorization(configOptions);
+
             // Add API key authentication scheme to the pipeline.
             return services
                 .AddAuthentication()
@@ -88,10 +95,27 @@ namespace Microsoft.AspNetCore.Authentication
             services.TryAddEnumerable(
                     ServiceDescriptor.Singleton<IPostConfigureOptions<CipherKeySchemeOptions>, PostConfigureOptions>());
 
+            var configOptions = new CipherKeySchemeOptions();
+            configureOptions?.Invoke(configOptions);
+
+            // Add required scope authorization.
+            services.AddScopeAuthorization(configOptions);
+
             // Add API key authentication scheme to the pipeline.
             return services
                 .AddAuthentication()
                 .AddScheme<CipherKeySchemeOptions, TApiKeyHandler>(authenticationScheme, configureOptions);
+        }
+
+        private static void AddScopeAuthorization(this IServiceCollection services,
+            CipherKeySchemeOptions configureOptions)
+        {
+            if (string.IsNullOrEmpty(configureOptions.Scope))
+            {
+                return;
+            }
+
+            services.AddRequiredScopeAuthorization();
         }
     }
 }
