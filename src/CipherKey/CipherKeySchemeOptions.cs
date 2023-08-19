@@ -34,6 +34,21 @@ namespace CipherKey
         public bool UseFallbackPolicy { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets the allowed origins to check during CORS validation.
+        /// </summary>
+        public string[]? AllowOrigins { get; set; }
+
+        /// <summary>
+        /// Gets or sets the allowed methods to check during CORS validation.
+        /// </summary>
+        public string[]? AllowMethods { get; set; }
+
+        /// <summary>
+        /// Gets or sets the policy name when validating CORS.
+        /// </summary>
+        internal string? PolicyName { get; set; }
+
+        /// <summary>
         /// Gets or sets the object provided by the application to process events raised by the API key 
         /// authentication middleware.
         /// </summary>

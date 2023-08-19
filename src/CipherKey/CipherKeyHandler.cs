@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using CipherKey.Events;
 using CipherKey.Utils;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,10 +17,15 @@ namespace CipherKey
     /// </summary>
     public class CipherKeyHandler : AuthenticationHandler<CipherKeySchemeOptions>
     {
+        private readonly ICorsService _corsService;
+        private readonly ICorsPolicyProvider _corsPolicyProvider;
+
         public CipherKeyHandler(IOptionsMonitor<CipherKeySchemeOptions> options, ILoggerFactory logger,
-            UrlEncoder encoder, ISystemClock clock)
+            UrlEncoder encoder, ISystemClock clock, ICorsService corsService, ICorsPolicyProvider corsPolicyProvider)
             : base(options, logger, encoder, clock)
         {
+            _corsService = corsService;
+            _corsPolicyProvider = corsPolicyProvider;
         }
 
         /// <summary>
@@ -32,6 +38,28 @@ namespace CipherKey
         /// </summary>
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
         {
+            try
+            {
+                await ParseOriginAsync().ConfigureAwait(false);
+            }
+            catch (Exception originException)
+            {
+                return HandleError("Origin", originException);
+            }
+
+            try
+            {
+                var validatedApiCors = await ValidateCorsAsync().ConfigureAwait(false);
+                if (validatedApiCors is not null)
+                {
+                    return validatedApiCors;
+                }
+            }
+            catch (Exception corsException)
+            {
+                return HandleError("Cors", corsException);
+            }
+
             string? apiKey = await ParseApiKeyAsync().ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -171,6 +199,14 @@ namespace CipherKey
 
         private AuthenticateResult ValidateApiKeyDetails(IApiKey validatedApiKey, string apiKey)
         {
+            if (validatedApiKey.Origin is not null
+                && !validatedApiKey.Origin.Contains(Request.Headers["Origin"].ToString()))
+            {
+                return HandleError("Origin",
+                    new InvalidOperationException(
+                        $"Origin {Request.Headers["Origin"]} not allowed by {nameof(IApiKeyProvider)}."));
+            }
+
             if (!string.Equals(validatedApiKey.Key, apiKey, StringComparison.OrdinalIgnoreCase))
             {
                 return HandleError("API Key Provider",
@@ -182,6 +218,48 @@ namespace CipherKey
             var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
             return AuthenticateResult.Success(ticket);
+        }
+
+        private async Task<AuthenticateResult?> ValidateCorsAsync()
+        {
+            var validatedApiCors = new CorsContext(Context, Scheme, Options, _corsService, _corsPolicyProvider);
+            await validatedApiCors.ValidateCorsAsync().ConfigureAwait(false);
+
+            return validatedApiCors.Result;
+        }
+
+        private Task ParseOriginAsync()
+        {
+            if (Request.Headers.TryGetValue("Origin", out var _))
+            {
+                return Task.CompletedTask;
+            }
+
+            if (Request.Headers.TryGetValue("X-Origin", out var xOrigin))
+            {
+                Request.Headers["Origin"] = xOrigin;
+                return Task.CompletedTask;
+            }
+
+            if (Request.Headers.TryGetValue("Referer", out var referer)
+                && Uri.TryCreate(referer, UriKind.Absolute, out var uriOrigin))
+            {
+                var refererOrigin = uriOrigin.Port == 80 || uriOrigin.Port == 443
+                    ? $"{uriOrigin.Scheme}://{uriOrigin.Host}"
+                    : $"{uriOrigin.Scheme}://{uriOrigin.Host}:{uriOrigin.Port}";
+
+                Request.Headers["Origin"] = refererOrigin;
+                return Task.CompletedTask;
+            }
+
+            if (Request.Headers.TryGetValue("Postman-Token", out var _))
+            {
+                Request.Headers["Origin"] = "postman";
+                return Task.CompletedTask;
+            }
+
+            Request.Headers["Origin"] = "unknown";
+            return Task.CompletedTask;
         }
     }
 }
