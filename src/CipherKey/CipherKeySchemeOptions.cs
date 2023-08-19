@@ -29,6 +29,11 @@ namespace CipherKey
         public string? Scope { get; set; }
 
         /// <summary>
+        /// Gets or sets whether to use the fallback policy for every request by default.
+        /// </summary>
+        public bool UseFallbackPolicy { get; set; } = true;
+
+        /// <summary>
         /// Gets or sets the object provided by the application to process events raised by the API key 
         /// authentication middleware.
         /// </summary>

@@ -1,4 +1,5 @@
 using CipherKey;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -56,6 +57,9 @@ namespace Microsoft.AspNetCore.Authentication
             var configOptions = new CipherKeySchemeOptions();
             configureOptions?.Invoke(configOptions);
 
+            // Add fallback policy
+            services.AddFallbackPolicy(configOptions);
+
             // Add required scope authorization.
             services.AddScopeAuthorization(configOptions);
 
@@ -98,6 +102,9 @@ namespace Microsoft.AspNetCore.Authentication
             var configOptions = new CipherKeySchemeOptions();
             configureOptions?.Invoke(configOptions);
 
+            // Add fallback policy
+            services.AddFallbackPolicy(configOptions);
+
             // Add required scope authorization.
             services.AddScopeAuthorization(configOptions);
 
@@ -105,6 +112,22 @@ namespace Microsoft.AspNetCore.Authentication
             return services
                 .AddAuthentication()
                 .AddScheme<CipherKeySchemeOptions, TApiKeyHandler>(authenticationScheme, configureOptions);
+        }
+
+        private static void AddFallbackPolicy(this IServiceCollection services,
+            CipherKeySchemeOptions configureOptions)
+        {
+            if (!configureOptions.UseFallbackPolicy)
+            {
+                return;
+            }
+
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
         }
 
         private static void AddScopeAuthorization(this IServiceCollection services,
