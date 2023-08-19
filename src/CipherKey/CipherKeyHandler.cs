@@ -1,7 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text.Encodings.Web;
 using CipherKey.Events;
+using CipherKey.Utils;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -49,6 +51,12 @@ namespace CipherKey
                 if (validateConfigKeyResult is not null)
                 {
                     return validateConfigKeyResult;
+                }
+
+                var validatedApiKey = await ValidateUsingApiKeyProviderAsync(apiKey).ConfigureAwait(false);
+                if (validatedApiKey is not null)
+                {
+                    return ValidateApiKeyDetails(validatedApiKey, apiKey);
                 }
 
                 return HandleError("API Key", new InvalidOperationException("Invalid API Key provided."));
@@ -131,6 +139,49 @@ namespace CipherKey
             }
 
             return Task.FromResult<AuthenticateResult?>(null);
+        }
+
+        private async Task<IApiKey?> ValidateUsingApiKeyProviderAsync(string apiKey)
+        {
+            IApiKeyProvider? apiKeyProvider = null;
+
+            if (Options.ApiKeyProviderType is not null)
+            {
+                apiKeyProvider = ActivatorUtilities
+                    .GetServiceOrCreateInstance(Context.RequestServices, Options.ApiKeyProviderType) as IApiKeyProvider;
+            }
+
+            if (apiKeyProvider is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return await apiKeyProvider.ProvideAsync(apiKey).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (apiKeyProvider is IDisposable disposableApiKeyProvider)
+                {
+                    disposableApiKeyProvider.Dispose();
+                }
+            }
+        }
+
+        private AuthenticateResult ValidateApiKeyDetails(IApiKey validatedApiKey, string apiKey)
+        {
+            if (!string.Equals(validatedApiKey.Key, apiKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return HandleError("API Key Provider",
+                    new InvalidOperationException($"Invalid API Key provided by {nameof(IApiKeyProvider)}."));
+            }
+
+            var principal = CipherKeyUtils
+                .BuildPrincipal(validatedApiKey.OwnerName, Scheme.Name, ClaimsIssuer);
+            var ticket = new AuthenticationTicket(principal, Scheme.Name);
+
+            return AuthenticateResult.Success(ticket);
         }
     }
 }
