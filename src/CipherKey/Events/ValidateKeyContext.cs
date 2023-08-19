@@ -35,7 +35,7 @@ namespace CipherKey.Events
         /// and <see cref="ClaimTypes.NameIdentifier"/> if not already added with <paramref name="claims"/>.</param>
         public void ValidationSucceeded(string ownerName)
         {
-            Principal = CipherKeyUtils.BuildPrincipal(ownerName, Scheme.Name, Options.ClaimsIssuer ?? "");
+            Principal = CipherKeyUtils.BuildPrincipal(ownerName, Scheme.Name, Options.ClaimsIssuer ?? "", Options.Scope);
             Success();
         }
 

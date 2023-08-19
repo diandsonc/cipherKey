@@ -24,6 +24,11 @@ namespace CipherKey
         public string? ApiKey { get; set; }
 
         /// <summary>
+        /// Gets or sets the scope to be put on the claim.
+        /// </summary>
+        public string? Scope { get; set; }
+
+        /// <summary>
         /// Gets or sets the object provided by the application to process events raised by the API key 
         /// authentication middleware.
         /// </summary>

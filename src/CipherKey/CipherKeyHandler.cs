@@ -178,7 +178,7 @@ namespace CipherKey
             }
 
             var principal = CipherKeyUtils
-                .BuildPrincipal(validatedApiKey.OwnerName, Scheme.Name, ClaimsIssuer);
+                .BuildPrincipal(validatedApiKey.OwnerName, Scheme.Name, ClaimsIssuer, Options.Scope);
             var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
             return AuthenticateResult.Success(ticket);
