@@ -18,6 +18,17 @@ namespace CipherKey
                     be set in {typeof(CipherKeySchemeOptions).Name} when setting up the authentication."
                 );
             }
+
+            if (options.ApiKey is null
+                && options.Events?.OnValidateKey is null
+                && options.EventsType is null)
+            {
+                throw new InvalidOperationException(
+                    @$"{nameof(CipherKeySchemeOptions.ApiKey)} should 
+                    be set or {nameof(CipherKeySchemeOptions.Events.OnValidateKey)} should 
+                    be delegated in configure options {nameof(CipherKeySchemeOptions.Events)}."
+                );
+            }
         }
     }
 }

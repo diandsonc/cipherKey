@@ -21,6 +21,11 @@ namespace CipherKey
         }
 
         /// <summary>
+        /// Get or set <see cref="CipherKeyEvents"/>.
+        /// </summary>
+        protected new CipherKeyEvents? Events { get => (CipherKeyEvents?)base.Events; set => base.Events = value; }
+
+        /// <summary>
         /// Handles authentication for the CipherKey scheme.
         /// </summary>
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -34,6 +39,12 @@ namespace CipherKey
 
             try
             {
+                var validateEventResult = await ValidateUsingEventAsync(apiKey).ConfigureAwait(false);
+                if (validateEventResult is not null)
+                {
+                    return validateEventResult;
+                }
+
                 var validateConfigKeyResult = await ValidateConfigKeyAsync(apiKey).ConfigureAwait(false);
                 if (validateConfigKeyResult is not null)
                 {
@@ -79,6 +90,19 @@ namespace CipherKey
             }
 
             return Task.FromResult<string?>(null);
+        }
+
+        private async Task<AuthenticateResult?> ValidateUsingEventAsync(string apiKey)
+        {
+            if (Events is null || Events.OnValidateKey is null)
+            {
+                return null;
+            }
+
+            var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
+            await Events.ValidateKeyAsync(validateKeyContext).ConfigureAwait(false);
+
+            return validateKeyContext.Result;
         }
 
         private Task<AuthenticateResult?> ValidateConfigKeyAsync(string apiKey)
