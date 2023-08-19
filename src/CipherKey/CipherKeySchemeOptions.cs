@@ -32,5 +32,10 @@ namespace CipherKey
             get => (CipherKeyEvents?)base.Events;
             set => base.Events = value;
         }
+
+        /// <summary>
+        /// Gets or sets the type of the API key provider.
+        /// </summary>
+        internal Type? ApiKeyProviderType { get; set; }
     }
 }
