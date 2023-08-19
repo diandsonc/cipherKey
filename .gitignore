@@ -1,0 +1,20 @@
+/packages/
+bin/
+obj/
+*.csproj.user
+*launchSettings.json
+*.suo
+/.vs/
+.vscode
+FolderProfile.pubxml
+CustomProfile.pubxml.user
+/Bin
+*/TestResults
+*/coverage.*
+teste.pfx
+wwwroot/
+*launchSettings.json
+
+# system files
+.DS_Store
+Thumbs.db
