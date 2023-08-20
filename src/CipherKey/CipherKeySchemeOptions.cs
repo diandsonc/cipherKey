@@ -44,11 +44,6 @@ namespace CipherKey
         public string[]? AllowMethods { get; set; }
 
         /// <summary>
-        /// Gets or sets the policy name when validating CORS.
-        /// </summary>
-        internal string? PolicyName { get; set; }
-
-        /// <summary>
         /// Gets or sets the object provided by the application to process events raised by the API key 
         /// authentication middleware.
         /// </summary>
@@ -62,5 +57,10 @@ namespace CipherKey
         /// Gets or sets the type of the API key provider.
         /// </summary>
         internal Type? ApiKeyProviderType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the policy name when validating CORS.
+        /// </summary>
+        internal string? PolicyName { get; set; }
     }
 }
