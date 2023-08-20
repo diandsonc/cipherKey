@@ -6,19 +6,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CipherKey</AssemblyName>
     <AssemblyTitle>CipherKey</AssemblyTitle>
-    <AssemblyVersion>0.0.5</AssemblyVersion>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
     <Product>CipherKey Library</Product>
-    <Version>0.0.5</Version>
+    <Version>1.0.0</Version>
     <Authors>Diandson C. Ramos</Authors>
     <Owners>Diandson C. Ramos</Owners>
     <Copyright>Copyright (c) 2023 Diandson C. Ramos</Copyright>
     <Description>A library for API key authentication and encryption.</Description>
     <PackageId>CipherKey</PackageId>
     <PackageLicense>https://github.com/diandsonc/cipherKey/blob/master/LICENSE</PackageLicense>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/diandsonc/cipherKey</PackageProjectUrl>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReleaseNotes>https://github.com/diandsonc/cipherKey/releases</PackageReleaseNotes>
-    <PackageTags>API Authentication Encryption Security, API Key, Token</PackageTags>
+    <PackageTags>authentication, security, apikey, api key, api-keys, authorization, web-api, middleware, encryption, token, permission</PackageTags>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/diandsonc/cipherKey</RepositoryUrl>
   </PropertyGroup>
