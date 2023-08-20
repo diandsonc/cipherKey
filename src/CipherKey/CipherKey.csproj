@@ -6,9 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CipherKey</AssemblyName>
     <AssemblyTitle>CipherKey</AssemblyTitle>
-    <AssemblyVersion>0.0.2</AssemblyVersion>
+    <AssemblyVersion>0.0.5</AssemblyVersion>
     <Product>CipherKey Library</Product>
-    <Version>0.0.2</Version>
+    <Version>0.0.5</Version>
     <Authors>Diandson C. Ramos</Authors>
     <Owners>Diandson C. Ramos</Owners>
     <Copyright>Copyright (c) 2023 Diandson C. Ramos</Copyright>

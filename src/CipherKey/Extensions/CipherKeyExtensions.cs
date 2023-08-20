@@ -68,9 +68,22 @@ namespace Microsoft.AspNetCore.Authentication
 
             // Add API key authentication scheme to the pipeline.
             return services
-                .AddAuthentication()
+                .AddAuthentication(authenticationScheme)
                 .AddScheme<CipherKeySchemeOptions, CipherKeyHandler>(authenticationScheme, configureOptions);
         }
+
+        /// <summary>
+        /// Adds API key authentication and authorization to the application.
+        /// </summary>
+        /// <typeparam name="TApiKeyProvider">The type of the API key provider.</typeparam>
+        /// <param name="services">The service collection.</param>
+        /// <param name="authenticationScheme">The authentication scheme.</param>
+        /// <returns>The instance of <see cref="AuthenticationBuilder"/>.</returns>
+        public static AuthenticationBuilder AddCipherKey<TApiKeyProvider>(
+            this IServiceCollection services, string authenticationScheme)
+                where TApiKeyProvider : class, IApiKeyProvider
+                    => services
+                        .AddCipherKey<TApiKeyProvider, CipherKeyHandler>(authenticationScheme, configureOptions: null);
 
         /// <summary>
         /// Adds API key authentication and authorization to the application.
@@ -88,7 +101,7 @@ namespace Microsoft.AspNetCore.Authentication
 
         private static AuthenticationBuilder AddCipherKey<TApiKeyProvider, TApiKeyHandler>(
             this IServiceCollection services, string authenticationScheme,
-            Action<CipherKeySchemeOptions> configureOptions
+            Action<CipherKeySchemeOptions>? configureOptions
         )
             where TApiKeyProvider : class, IApiKeyProvider
             where TApiKeyHandler : AuthenticationHandler<CipherKeySchemeOptions>
@@ -116,7 +129,7 @@ namespace Microsoft.AspNetCore.Authentication
 
             // Add API key authentication scheme to the pipeline.
             return services
-                .AddAuthentication()
+                .AddAuthentication(authenticationScheme)
                 .AddScheme<CipherKeySchemeOptions, TApiKeyHandler>(authenticationScheme, configureOptions);
         }
 
