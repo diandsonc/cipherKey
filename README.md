@@ -45,7 +45,7 @@ using CipherKey;
 
 // Inside your Program.cs
 
-builder.Services.AddCipherKey<MyProvider>(CipherKeyDefaults.AuthenticationScheme, options =>
+builder.Services.AddCipherKey<MyCustomProvider>(CipherKeyDefaults.AuthenticationScheme, options =>
 {
     options.KeyName = "X-API-Key";
     options.ApiKey = "API_KEY";
@@ -56,10 +56,9 @@ builder.Services.AddCipherKey<MyProvider>(CipherKeyDefaults.AuthenticationScheme
     options.UseFallbackPolicy = true;
     options.Events = new CipherKeyEvents
     {
-        OnValidateKey = async context =>
+        OnValidateKey = context =>
         {
-            // Custom validation logic
-            if (context.ApiKey == "API_KEY2")
+            if (context.ApiKey == "cipher_key_event")
             {
                 context.ValidationSucceeded(ownerName: "Lagertha");
             }
@@ -67,6 +66,8 @@ builder.Services.AddCipherKey<MyProvider>(CipherKeyDefaults.AuthenticationScheme
             {
                 context.ValidationFailed();
             }
+
+            return Task.CompletedTask;
         }
     };
 });
@@ -124,7 +125,7 @@ When integrating CipherKey into your application, consider the following paramet
 
 - **KeyName**: Represents the name of the API key being used for authentication. It helps distinguish between different API keys and their associated permissions or roles. By default, the KeyName is "X-API-Key".
 
-- **ApiKey**: The actual API key value that must be along with the request for authentication. It is used to validate the authenticity of the request.
+- **ApiKey**: The actual API key value that must be sent along with the request for authentication. It is used to validate the authenticity of the request.
 
 - **Scope**: Defines the level of access or permissions associated with the API key. It specifies what actions or resources the API key holder is authorized to access.
 
@@ -139,6 +140,9 @@ When integrating CipherKey into your application, consider the following paramet
 - **Events**: Provides hooks to attach custom logic or actions during the authentication process. Events can trigger actions such as success, failure.
 
 Integrate these parameters according to your application's requirements to enhance the security and effectiveness of your API authentication process.
+
+> **Important**
+> The API key must be provided in the following format: `{owner}://{ApiKey}`. The `{owner}` placeholder refers to the owner or identifier of the API key, and `{ApiKey}` should be replaced with the actual API key value. If the API key is not provided in this exact format, authorizations will fail.
 
 ## Three Ways to Check the Key in the Request
 
@@ -159,7 +163,7 @@ using CipherKey;
 
 // ...
 
-builder.Services.AddCipherKey<MyProvider>(CipherKeyDefaults.AuthenticationScheme);
+builder.Services.AddCipherKey<MyCustomProvider>(CipherKeyDefaults.AuthenticationScheme);
 
 ```
 
@@ -178,13 +182,14 @@ Create a custom provider class that implements the `IApiKeyProvider` interface. 
 ```csharp
 using CipherKey;
 
-public class MyProvider : IApiKeyProvider
+public class MyCustomProvider : IApiKeyProvider
 {
-    private List<IApiKey> _cache = new List<IApiKey>
+    private readonly List<IApiKey> _cache = new List<IApiKey>
     {
-        new ApiKeyAux("myApiKey27", "Lagertha", new string[] { "http://localhost:4200" }),
-        new ApiKeyAux("myApiKey11", "Brandon", new string[] { "http://localhost:5081" }),
-        new ApiKeyAux("myApiKey88", "Rieka") // Ignore origin
+        new ApiKey("myApiKey27", "Lagertha", new string[] { "http://localhost:4200" }),
+        new ApiKey("myApiKey11", "Brandon", new string[] { "http://localhost:5081" }),
+        new ApiKey("myApiKey88", "Rieka", new string[] { }), // Deny all origins
+        new ApiKey("myApiKey35", "Adena") // Allow any origin
     };
 
     public Task<IApiKey?> ProvideAsync(string key)
@@ -196,7 +201,26 @@ public class MyProvider : IApiKeyProvider
         return Task.FromResult(apiKey);
     }
 }
+```
 
+```csharp
+using CipherKey;
+
+public class ApiKey : IApiKey
+{
+    public ApiKey(string key, string owner, string[]? origin = null)
+    {
+        Key = key;
+        OwnerName = owner;
+        Origin = origin;
+    }
+
+    public string Key { get; set; }
+
+    public string OwnerName { get; set; }
+
+    public string[]? Origin { get; set; }
+}
 ```
 
 #### Usage Considerations
@@ -225,7 +249,9 @@ builder.Services.AddCipherKey(CipherKeyDefaults.AuthenticationScheme, options =>
         OnValidateKey = async context =>
         {
             // Custom validation logic
-            if (context.ApiKey == "API_KEY2")
+            var myKey = await myRepository.GetKey();
+
+            if (context.ApiKey == myKey)
             {
                 context.ValidationSucceeded(ownerName: "Lagertha");
             }
@@ -235,6 +261,8 @@ builder.Services.AddCipherKey(CipherKeyDefaults.AuthenticationScheme, options =>
                 // the system will attempt to validate the key using your API_KEY and your provider
                 context.ValidationFailed();
             }
+
+            return Task.CompletedTask;
         }
     };
 });
@@ -250,10 +278,10 @@ app.UseCipherKey();
 
 #### Usage Considerations
 
-Event-Based Authentication provides you with a powerful mechanism to customize the authentication process according to your application's specific requirements. By defining custom event logic, you can implement token validation, user role checks, and other actions that contribute to a secure and controlled authentication flow. 
+Event-Based Authentication provides you with a powerful mechanism to customize the authentication process according to your application's specific requirements. By defining custom event logic, you can implement token validation, user role checks, and other actions that contribute to a secure and controlled authentication flow.
 
-> **Note** 
-If you implement custom event-based authentication using `OnValidateKey` and do not use `ValidationFailed` in case of a validation failure, the system will automatically attempt to validate the key using the API key configured (`options.ApiKey`) and your custom provider (`MyProvider`), ensuring a seamless authentication process even when custom logic fails. To maintain full control over the validation process, make sure to use `ValidationFailed` appropriately when implementing custom validation logic.
+> **Note**
+> If you implement custom event-based authentication using `OnValidateKey` and do not use `ValidationFailed` in case of a validation failure, the system will automatically attempt to validate the key using the API key configured (`options.ApiKey`) and your custom provider (`MyCustomProvider`), ensuring a seamless authentication process even when custom logic fails. To maintain full control over the validation process, make sure to use `ValidationFailed` appropriately when implementing custom validation logic.
 
 ### C. API Key-Based Authentication
 
@@ -322,11 +350,11 @@ Remember to ensure that your CipherKey implementation is configured to validate 
 
 ## CipherKey Manager
 
-The CipherKey Manager provides convenient methods for managing API keys, generating secret encryption keys, and performing data encryption and decryption operations. This section demonstrates how to use the CipherKeyManager methods effectively.
+The CipherKey Manager provides convenient methods for managing API keys, generating secret encryption keys, and performing data encryption and decryption operations. Here's how to effectively use these methods:
 
-### Generating API Keys
+#### Generating API Keys
 
-To generate a new API key for your system, use the `GenerateApiKey` method by providing a meaningful name or identifier for your system:
+To generate a new API key for your system, utilize the `GenerateApiKey` method with a meaningful identifier:
 
 ```csharp
 string apiKey = CipherKeyManager.GenerateApiKey("mySystem");
@@ -334,29 +362,29 @@ string apiKey = CipherKeyManager.GenerateApiKey("mySystem");
 
 ### Generating Secret Encryption Keys
 
-For secure operations such as data encryption, you can generate a secret encryption key of a specified length using the `GenerateSecretKey` method:
+For secure data operations, generate secret encryption keys of specified lengths using the `GenerateSecretKey` method:
 
 ```csharp
-string encryptionKey = CipherKeyManager.GenerateSecretKey(32); // Generate a 32-byte encryption key
-string encryptionIV = CipherKeyManager.GenerateSecretKey(16); // Generate a 16-byte encryption key
+string encryptionKey = CipherKeyManager.GenerateSecretKey(32); // 32-byte encryption key
+string encryptionIV = CipherKeyManager.GenerateSecretKey(16); // 16-byte encryption IV
 ```
 
 ### Data Encryption and Decryption
 
-You can use the CipherKey Manager to encrypt and decrypt sensitive data using encryption keys and initialization vectors (IVs). Here's how you can achieve this:
+Encrypt and decrypt sensitive data using CipherKey Manager:
 
-Encrypting Data
+#### Encrypting Data
 
-Encrypt sensitive data using the `Encrypt` method, providing the data, encryption key, and an initialization vector (IV):
+Encrypt sensitive data with the `Encrypt` method, providing the data, encryption key, and an initialization vector (IV):
 
 ```csharp
 string sensitiveData = "This is confidential information.";
 string encryptedText = CipherKeyManager.Encrypt(sensitiveData, encryptionKey, encryptionIV);
 ```
 
-Decrypting Data
+#### Decrypting Data
 
-To decrypt the encrypted text, use the `Decrypt` method with the encrypted text, encryption key, and the same initialization vector (IV) used for encryption:
+Decrypt encrypted text using the `Decrypt` method, encryption key, and the same initialization vector (IV):
 
 ```csharp
 string decryptedText = CipherKeyManager.Decrypt(encryptedText, encryptionKey, encryptionIV);
@@ -364,7 +392,19 @@ string decryptedText = CipherKeyManager.Decrypt(encryptedText, encryptionKey, en
 
 #### Usage Considerations
 
-The CipherKey Manager provides an encapsulated and straightforward approach to generating API keys, managing secret encryption keys, and performing data encryption and decryption operations. By utilizing these methods, you can enhance the security of your application's sensitive information and streamline your cryptographic processes. Incorporate these methods as needed within your application's logic to achieve secure and efficient data handling.
+The CipherKey Manager methods offer an encapsulated and straightforward approach to generating API keys, managing secret encryption keys, and performing data encryption and decryption operations. Incorporate these methods within your application's logic to enhance data security and streamline cryptographic processes.
+
+## Security Best Practices
+
+To ensure the security of your API keys, follow these best practices:
+
+- **Secure Storage**: Store API keys securely, avoiding hardcoding them in your source code or exposing them in public repositories.
+
+- **Key Rotation**: Regularly rotate your API keys to mitigate the risk of unauthorized access.
+
+- **Access Restriction**: Limit the scope of access granted by each API key to only what is necessary. Avoid granting unnecessary permissions.
+
+- **Revocation**: Implement a mechanism to revoke API keys when they are no longer needed or if they have been compromised.
 
 ## Contributing
 
