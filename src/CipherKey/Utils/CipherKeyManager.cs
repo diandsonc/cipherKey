@@ -145,8 +145,8 @@ namespace CipherKey.Utils
 
             using (Aes aesAlg = Aes.Create())
             {
-                aesAlg.Key = Encoding.UTF8.GetBytes(encryptionKey[^32..]);
-                aesAlg.IV = Encoding.UTF8.GetBytes(encryptionIV[^16..]);
+                aesAlg.Key = Encoding.UTF8.GetBytes(encryptionKey[..32]);
+                aesAlg.IV = Encoding.UTF8.GetBytes(encryptionIV[..16]);
                 aesAlg.Padding = PaddingMode.ISO10126;
 
                 using (var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV))
