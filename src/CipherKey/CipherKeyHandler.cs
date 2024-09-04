@@ -21,8 +21,8 @@ namespace CipherKey
         private readonly ICorsPolicyProvider _corsPolicyProvider;
 
         public CipherKeyHandler(IOptionsMonitor<CipherKeySchemeOptions> options, ILoggerFactory logger,
-            UrlEncoder encoder, ISystemClock clock, ICorsService corsService, ICorsPolicyProvider corsPolicyProvider)
-            : base(options, logger, encoder, clock)
+            UrlEncoder encoder, ICorsService corsService, ICorsPolicyProvider corsPolicyProvider)
+            : base(options, logger, encoder)
         {
             _corsService = corsService;
             _corsPolicyProvider = corsPolicyProvider;
@@ -84,6 +84,15 @@ namespace CipherKey
                 var validatedApiKey = await ValidateUsingApiKeyProviderAsync(apiKey).ConfigureAwait(false);
                 if (validatedApiKey is not null)
                 {
+                    if (apiKey.Contains("://"))
+                    {
+                        var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
+                        if (apiKeyParts.Length == 2)
+                        {
+                            return ValidateApiKeyDetails(validatedApiKey, apiKeyParts[1]);
+                        }
+                    }
+
                     return ValidateApiKeyDetails(validatedApiKey, apiKey);
                 }
 
@@ -149,21 +158,10 @@ namespace CipherKey
             }
 
             var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
-            if (validateKeyContext.ApiKey.Contains("://"))
+            if (string.Equals(validateKeyContext.ApiKey, Options.ApiKey, StringComparison.OrdinalIgnoreCase))
             {
-                var apiKeyParts = validateKeyContext.ApiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
-
-                if (apiKeyParts.Length == 2)
-                {
-                    var ownerName = apiKeyParts[0];
-                    var validatedApiKey = apiKeyParts[1];
-
-                    if (string.Equals(validatedApiKey, Options.ApiKey, StringComparison.OrdinalIgnoreCase))
-                    {
-                        validateKeyContext.ValidationSucceeded(ownerName);
-                        return Task.FromResult<AuthenticateResult?>(validateKeyContext.Result);
-                    }
-                }
+                validateKeyContext.ValidationSucceeded(validateKeyContext.Owner);
+                return Task.FromResult<AuthenticateResult?>(validateKeyContext.Result);
             }
 
             return Task.FromResult<AuthenticateResult?>(null);
@@ -176,7 +174,8 @@ namespace CipherKey
             if (Options.ApiKeyProviderType is not null)
             {
                 apiKeyProvider = ActivatorUtilities
-                    .GetServiceOrCreateInstance(Context.RequestServices, Options.ApiKeyProviderType) as IApiKeyProvider;
+                    .GetServiceOrCreateInstance(Context.RequestServices, Options.ApiKeyProviderType)
+                    as IApiKeyProvider;
             }
 
             if (apiKeyProvider is null)
@@ -186,7 +185,11 @@ namespace CipherKey
 
             try
             {
-                return await apiKeyProvider.ProvideAsync(apiKey).ConfigureAwait(false);
+                var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
+
+                return await apiKeyProvider
+                    .ProvideAsync(validateKeyContext.ApiKey, validateKeyContext.Owner)
+                    .ConfigureAwait(false);
             }
             finally
             {

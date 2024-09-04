@@ -20,7 +20,8 @@ namespace CipherKey.Events
             string apiKey)
             : base(context, scheme, options)
         {
-            ApiKey = apiKey;
+            ApiKey = ExtractAPIKey(apiKey);
+            Owner = ExtractAPIKeyOwner(apiKey);
         }
 
         /// <summary>
@@ -29,11 +30,16 @@ namespace CipherKey.Events
         public string ApiKey { get; }
 
         /// <summary>
+        /// Gets the API key owner validated.
+        /// </summary>
+        public string? Owner { get; }
+
+        /// <summary>
         /// Handles the successful validation of the API key.
         /// </summary>
         /// <param name="ownerName">The owner name to be added to claims as <see cref="ClaimTypes.Name"/> 
         /// and <see cref="ClaimTypes.NameIdentifier"/> if not already added with <paramref name="claims"/>.</param>
-        public void ValidationSucceeded(string ownerName)
+        public void ValidationSucceeded(string? ownerName)
         {
             Principal = CipherKeyUtils.BuildPrincipal(ownerName, Scheme.Name, Options.ClaimsIssuer ?? "", Options.Scope);
             Success();
@@ -52,6 +58,36 @@ namespace CipherKey.Events
             }
 
             Fail(failureMessage);
+        }
+
+        private string ExtractAPIKey(string apiKey)
+        {
+            if (apiKey.Contains("://"))
+            {
+                var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
+
+                if (apiKeyParts.Length == 2)
+                {
+                    return apiKeyParts[1];
+                }
+            }
+
+            return apiKey;
+        }
+
+        private string? ExtractAPIKeyOwner(string apiKey)
+        {
+            if (apiKey.Contains("://"))
+            {
+                var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
+
+                if (apiKeyParts.Length == 2)
+                {
+                    return apiKeyParts[0];
+                }
+            }
+
+            return null;
         }
     }
 }
