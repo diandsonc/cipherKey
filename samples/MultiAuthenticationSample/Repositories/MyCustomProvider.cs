@@ -13,7 +13,7 @@ namespace MultiAuthenticationSample.Repositories
             new ApiKey("cipher_key_provide_35", "Adena") // Allow any origin 
         };
 
-        public Task<IApiKey?> ProvideAsync(string key)
+        public Task<IApiKey?> ProvideAsync(string key, string? owner = null)
         {
             // Write your custom validation logic here.
             // Return an instance of a valid ApiKey or null for an invalid key.

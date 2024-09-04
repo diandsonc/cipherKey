@@ -82,5 +82,13 @@ namespace MultiAuthenticationSample.Controllers
         {
             return Ok("Get sucess as anonymous");
         }
+
+        // Action method requiring "msalPolicy" authorization policy and role "Manager".
+        [Authorize(Policy = "msalPolicy", Roles = "Manager")]
+        [HttpGet("msal-role")]
+        public IActionResult MsalPolicyWithRole()
+        {
+            return Ok($"Get success with user: {GetUserName()}");
+        }
     }
 }

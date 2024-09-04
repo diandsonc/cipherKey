@@ -192,7 +192,7 @@ public class MyCustomProvider : IApiKeyProvider
         new ApiKey("myApiKey35", "Adena") // Allow any origin
     };
 
-    public Task<IApiKey?> ProvideAsync(string key)
+    public Task<IApiKey?> ProvideAsync(string key, string? owner)
     {
         // Write your custom validation logic here.
         // Return an instance of a valid ApiKey or null for an invalid key.
