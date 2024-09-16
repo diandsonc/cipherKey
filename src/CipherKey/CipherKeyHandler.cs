@@ -203,11 +203,11 @@ namespace CipherKey
         private AuthenticateResult ValidateApiKeyDetails(IApiKey validatedApiKey, string apiKey)
         {
             if (validatedApiKey.Origin is not null
-                && !validatedApiKey.Origin.Contains(Request.Headers["Origin"].ToString()))
+                && !validatedApiKey.Origin.Contains(Request.Headers.Origin.ToString()))
             {
                 return HandleError("Origin",
                     new InvalidOperationException(
-                        $"Origin {Request.Headers["Origin"]} not allowed by {nameof(IApiKeyProvider)}."));
+                        $"Origin {Request.Headers.Origin} not allowed by {nameof(IApiKeyProvider)}."));
             }
 
             if (!string.Equals(validatedApiKey.Key, apiKey, StringComparison.OrdinalIgnoreCase))
@@ -240,7 +240,7 @@ namespace CipherKey
 
             if (Request.Headers.TryGetValue("X-Origin", out var xOrigin))
             {
-                Request.Headers["Origin"] = xOrigin;
+                Request.Headers.Origin = xOrigin;
                 return Task.CompletedTask;
             }
 
@@ -251,17 +251,24 @@ namespace CipherKey
                     ? $"{uriOrigin.Scheme}://{uriOrigin.Host}"
                     : $"{uriOrigin.Scheme}://{uriOrigin.Host}:{uriOrigin.Port}";
 
-                Request.Headers["Origin"] = refererOrigin;
+                Request.Headers.Origin = refererOrigin;
                 return Task.CompletedTask;
             }
 
             if (Request.Headers.TryGetValue("Postman-Token", out var _))
             {
-                Request.Headers["Origin"] = "postman";
+                Request.Headers.Origin = "postman";
                 return Task.CompletedTask;
             }
 
-            Request.Headers["Origin"] = "unknown";
+            var requestIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            if (!string.IsNullOrEmpty(requestIp))
+            {
+                Request.Headers.Origin = requestIp;
+                return Task.CompletedTask;
+            }
+
+            Request.Headers.Origin = "unknown";
             return Task.CompletedTask;
         }
     }

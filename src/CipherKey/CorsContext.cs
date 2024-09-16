@@ -53,7 +53,7 @@ namespace CipherKey
 
             if (corsResult.IsOriginAllowed is false)
             {
-                Fail($"Origin {Request.Headers["Origin"]} not allowed.");
+                Fail($"Origin {Request.Headers.Origin} not allowed.");
             }
 
             if (!policy.AllowAnyMethod && !policy.Methods.Any(x => x == Request.Method))
