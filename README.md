@@ -101,7 +101,7 @@ public class MyController : Controller
     public IActionResult GetScoped() { }
 
     // Use this to specify multiple schemes and scopes
-    [Authorize(AuthenticationSchemes = "Bearer,CipherKey")]
+    [Authorize(AuthenticationSchemes = "Bearer,ApiKey")]
     [RequiredScope("solutionName", "api.scope")]
     [HttpGet]
     public IActionResult GetMultiScheme() { }
@@ -131,7 +131,7 @@ When integrating CipherKey into your application, consider the following paramet
 
 - **ClaimsIssuer**: Specifies the issuer of the claims associated with the authentication token. It helps verify the authenticity of the token and ensures that it was issued by a trusted source.
 
-- **UseFallbackPolicy**: Specifies whether to use the fallback policy for every request by default. When enabled, it challenges authentication for every request. Default value is `true`.
+- **UseFallbackPolicy**: Specifies whether to use the fallback policy for every request by default. When enabled, it challenges authentication for every request. Default value is `false`.
 
 - **AllowOrigins**: Specifies the allowed origins for CORS. It defines which origins are permitted to make API requests, enhancing security and control over cross-origin requests.
 
@@ -184,7 +184,7 @@ using CipherKey;
 
 public class MyCustomProvider : IApiKeyProvider
 {
-    private readonly List<IApiKey> _cache = new List<IApiKey>
+    private readonly List<ApiKey> _cache = new List<ApiKey>
     {
         new ApiKey("myApiKey27", "Lagertha", new string[] { "http://localhost:4200" }),
         new ApiKey("myApiKey11", "Brandon", new string[] { "http://localhost:5081" }),
@@ -192,7 +192,7 @@ public class MyCustomProvider : IApiKeyProvider
         new ApiKey("myApiKey35", "Adena") // Allow any origin
     };
 
-    public Task<IApiKey?> ProvideAsync(string key, string? owner)
+    public Task<ApiKey?> ProvideAsync(string key, string? owner)
     {
         // Write your custom validation logic here.
         // Return an instance of a valid ApiKey or null for an invalid key.
@@ -200,26 +200,6 @@ public class MyCustomProvider : IApiKeyProvider
 
         return Task.FromResult(apiKey);
     }
-}
-```
-
-```csharp
-using CipherKey;
-
-public class ApiKey : IApiKey
-{
-    public ApiKey(string key, string owner, string[]? origin = null)
-    {
-        Key = key;
-        OwnerName = owner;
-        Origin = origin;
-    }
-
-    public string Key { get; set; }
-
-    public string OwnerName { get; set; }
-
-    public string[]? Origin { get; set; }
 }
 ```
 

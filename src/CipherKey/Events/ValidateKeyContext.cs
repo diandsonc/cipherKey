@@ -2,92 +2,90 @@ using CipherKey.Utils;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 
-namespace CipherKey.Events
+namespace CipherKey.Events;
+
+/// <summary>
+/// Context used for validating the API key.
+/// </summary>
+public class ValidateKeyContext : ResultContext<CipherKeySchemeOptions>
 {
     /// <summary>
-    /// Context used for validating the API key.
+    /// Initializes a new instance of the <see cref="ValidateKeyContext"/> class.
     /// </summary>
-    public class ValidateKeyContext : ResultContext<CipherKeySchemeOptions>
+    /// <param name="context">The HTTP context.</param>
+    /// <param name="scheme">The authentication scheme.</param>
+    /// <param name="options">The authentication options.</param>
+    /// <param name="apiKey">The API key to validate.</param>
+    public ValidateKeyContext(HttpContext context, AuthenticationScheme scheme,
+        CipherKeySchemeOptions options, string apiKey)
+        : base(context, scheme, options)
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ValidateKeyContext"/> class.
-        /// </summary>
-        /// <param name="context">The HTTP context.</param>
-        /// <param name="scheme">The authentication scheme.</param>
-        /// <param name="options">The authentication options.</param>
-        /// <param name="apiKey">The API key to validate.</param>
-        public ValidateKeyContext(HttpContext context, AuthenticationScheme scheme, CipherKeySchemeOptions options,
-            string apiKey)
-            : base(context, scheme, options)
+        ApiKey = ExtractAPIKey(apiKey);
+        Owner = ExtractAPIKeyOwner(apiKey);
+    }
+
+    /// <summary>
+    /// Gets the API key being validated.
+    /// </summary>
+    public string ApiKey { get; }
+
+    /// <summary>
+    /// Gets the API key owner validated.
+    /// </summary>
+    public string? Owner { get; }
+
+    /// <summary>
+    /// Handles the successful validation of the API key.
+    /// </summary>
+    /// <param name="ownerName">The owner name to be added to the claims.</param>
+    public void ValidationSucceeded(string? ownerName)
+    {
+        Principal = CipherKeyUtils.BuildPrincipal(ownerName, Scheme.Name, Options.ClaimsIssuer ?? "", Options.Scope);
+        Success();
+    }
+
+    /// <summary>
+    /// Handles the failed validation of the API key.
+    /// </summary>
+    /// <param name="failureMessage">(Optional) The failure message.</param>
+    public void ValidationFailed(string? failureMessage = null)
+    {
+        if (string.IsNullOrWhiteSpace(failureMessage))
         {
-            ApiKey = ExtractAPIKey(apiKey);
-            Owner = ExtractAPIKeyOwner(apiKey);
+            NoResult();
+            return;
         }
 
-        /// <summary>
-        /// Gets the API key being validated.
-        /// </summary>
-        public string ApiKey { get; }
+        Fail(failureMessage);
+    }
 
-        /// <summary>
-        /// Gets the API key owner validated.
-        /// </summary>
-        public string? Owner { get; }
-
-        /// <summary>
-        /// Handles the successful validation of the API key.
-        /// </summary>
-        /// <param name="ownerName">The owner name to be added to claims as <see cref="ClaimTypes.Name"/> 
-        /// and <see cref="ClaimTypes.NameIdentifier"/> if not already added with <paramref name="claims"/>.</param>
-        public void ValidationSucceeded(string? ownerName)
+    private static string ExtractAPIKey(string apiKey)
+    {
+        if (apiKey.Contains("://"))
         {
-            Principal = CipherKeyUtils.BuildPrincipal(ownerName, Scheme.Name, Options.ClaimsIssuer ?? "", Options.Scope);
-            Success();
-        }
+            var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
 
-        /// <summary>
-        /// Handles the failed validation of the API key.
-        /// </summary>
-        /// <param name="failureMessage">(Optional) The failure message.</param>
-        public void ValidationFailed(string? failureMessage = null)
-        {
-            if (string.IsNullOrWhiteSpace(failureMessage))
+            if (apiKeyParts.Length == 2)
             {
-                NoResult();
-                return;
+                return apiKeyParts[1];
             }
-
-            Fail(failureMessage);
         }
 
-        private string ExtractAPIKey(string apiKey)
+        return apiKey;
+    }
+
+    private static string? ExtractAPIKeyOwner(string apiKey)
+    {
+        if (apiKey.Contains("://"))
         {
-            if (apiKey.Contains("://"))
+            var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
+
+            if (apiKeyParts.Length == 2)
             {
-                var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
-
-                if (apiKeyParts.Length == 2)
-                {
-                    return apiKeyParts[1];
-                }
+                return apiKeyParts[0];
             }
-
-            return apiKey;
         }
 
-        private string? ExtractAPIKeyOwner(string apiKey)
-        {
-            if (apiKey.Contains("://"))
-            {
-                var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
-
-                if (apiKeyParts.Length == 2)
-                {
-                    return apiKeyParts[0];
-                }
-            }
-
-            return null;
-        }
+        return null;
     }
 }

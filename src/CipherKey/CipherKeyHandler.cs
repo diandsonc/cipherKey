@@ -9,267 +9,274 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace CipherKey
+namespace CipherKey;
+
+/// <summary>
+/// Handles API key authentication using the CipherKey scheme.
+/// Inherited from <see cref="AuthenticationHandler{TOptions}"/>.
+/// </summary>
+public class CipherKeyHandler : AuthenticationHandler<CipherKeySchemeOptions>
 {
+    private readonly ICorsService _corsService;
+    private readonly ICorsPolicyProvider _corsPolicyProvider;
+
     /// <summary>
-    /// Handles API key authentication using the CipherKey scheme.
-    /// Inherited from <see cref="AuthenticationHandler{TOptions}"/>.
+    /// Initializes a new instance of the <see cref="CipherKeyHandler"/> class.
     /// </summary>
-    public class CipherKeyHandler : AuthenticationHandler<CipherKeySchemeOptions>
+    /// <param name="options">The options used for authentication configuration, injected via <see cref="IOptionsMonitor{T}"/>.</param>
+    /// <param name="logger">The logger factory used to create loggers for the handler, injected via <see cref="ILoggerFactory"/>.</param>
+    /// <param name="encoder">The encoder used to encode URLs, injected via <see cref="UrlEncoder"/>.</param>
+    /// <param name="corsService">The CORS service used for handling CORS validation, injected via <see cref="ICorsService"/>.</param>
+    /// <param name="corsPolicyProvider">The CORS policy provider used for retrieving CORS policies, injected via <see cref="ICorsPolicyProvider"/>.</param>
+    public CipherKeyHandler(IOptionsMonitor<CipherKeySchemeOptions> options, ILoggerFactory logger,
+        UrlEncoder encoder, ICorsService corsService, ICorsPolicyProvider corsPolicyProvider)
+        : base(options, logger, encoder)
     {
-        private readonly ICorsService _corsService;
-        private readonly ICorsPolicyProvider _corsPolicyProvider;
+        _corsService = corsService;
+        _corsPolicyProvider = corsPolicyProvider;
+    }
 
-        public CipherKeyHandler(IOptionsMonitor<CipherKeySchemeOptions> options, ILoggerFactory logger,
-            UrlEncoder encoder, ICorsService corsService, ICorsPolicyProvider corsPolicyProvider)
-            : base(options, logger, encoder)
+    /// <summary>
+    /// Get or set <see cref="CipherKeyEvents"/>.
+    /// </summary>
+    protected new CipherKeyEvents? Events { get => (CipherKeyEvents?)base.Events; set => base.Events = value; }
+
+    /// <summary>
+    /// Handles authentication for the CipherKey scheme.
+    /// </summary>
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        try
         {
-            _corsService = corsService;
-            _corsPolicyProvider = corsPolicyProvider;
+            await ParseOriginAsync().ConfigureAwait(false);
+        }
+        catch (Exception originException)
+        {
+            return HandleError("Origin", originException);
         }
 
-        /// <summary>
-        /// Get or set <see cref="CipherKeyEvents"/>.
-        /// </summary>
-        protected new CipherKeyEvents? Events { get => (CipherKeyEvents?)base.Events; set => base.Events = value; }
-
-        /// <summary>
-        /// Handles authentication for the CipherKey scheme.
-        /// </summary>
-        protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+        try
         {
-            try
+            var validatedApiCors = await ValidateCorsAsync().ConfigureAwait(false);
+            if (validatedApiCors is not null)
             {
-                await ParseOriginAsync().ConfigureAwait(false);
+                return validatedApiCors;
             }
-            catch (Exception originException)
+        }
+        catch (Exception corsException)
+        {
+            return HandleError("Cors", corsException);
+        }
+
+        string? apiKey = await ParseApiKeyAsync().ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Logger.LogDebug("No Api Key found in the request.");
+            return AuthenticateResult.NoResult();
+        }
+
+        try
+        {
+            var validateEventResult = await ValidateUsingEventAsync(apiKey).ConfigureAwait(false);
+            if (validateEventResult is not null)
             {
-                return HandleError("Origin", originException);
+                return validateEventResult;
             }
 
-            try
+            var validateConfigKeyResult = await ValidateConfigKeyAsync(apiKey).ConfigureAwait(false);
+            if (validateConfigKeyResult is not null)
             {
-                var validatedApiCors = await ValidateCorsAsync().ConfigureAwait(false);
-                if (validatedApiCors is not null)
+                return validateConfigKeyResult;
+            }
+
+            var validatedApiKey = await ValidateUsingApiKeyProviderAsync(apiKey).ConfigureAwait(false);
+            if (validatedApiKey is not null)
+            {
+                if (apiKey.Contains("://"))
                 {
-                    return validatedApiCors;
-                }
-            }
-            catch (Exception corsException)
-            {
-                return HandleError("Cors", corsException);
-            }
-
-            string? apiKey = await ParseApiKeyAsync().ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                Logger.LogDebug("No Api Key found in the request.");
-                return AuthenticateResult.NoResult();
-            }
-
-            try
-            {
-                var validateEventResult = await ValidateUsingEventAsync(apiKey).ConfigureAwait(false);
-                if (validateEventResult is not null)
-                {
-                    return validateEventResult;
-                }
-
-                var validateConfigKeyResult = await ValidateConfigKeyAsync(apiKey).ConfigureAwait(false);
-                if (validateConfigKeyResult is not null)
-                {
-                    return validateConfigKeyResult;
-                }
-
-                var validatedApiKey = await ValidateUsingApiKeyProviderAsync(apiKey).ConfigureAwait(false);
-                if (validatedApiKey is not null)
-                {
-                    if (apiKey.Contains("://"))
+                    var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
+                    if (apiKeyParts.Length == 2)
                     {
-                        var apiKeyParts = apiKey.Split("://", StringSplitOptions.RemoveEmptyEntries);
-                        if (apiKeyParts.Length == 2)
-                        {
-                            return ValidateApiKeyDetails(validatedApiKey, apiKeyParts[1]);
-                        }
+                        return ValidateApiKeyDetails(validatedApiKey, apiKeyParts[1]);
                     }
-
-                    return ValidateApiKeyDetails(validatedApiKey, apiKey);
                 }
 
-                return HandleError("API Key", new InvalidOperationException("Invalid API Key provided."));
+                return ValidateApiKeyDetails(validatedApiKey, apiKey);
             }
-            catch (Exception)
-            {
-                throw; // Re-throw the exception to avoid swallowing it
-            }
+
+            return HandleError("API Key", new InvalidOperationException("Invalid API Key provided."));
         }
-
-        private AuthenticateResult HandleError(string errorLocation, Exception exception)
+        catch (Exception)
         {
-            Logger.LogError(exception, $"Error {errorLocation}.");
-            return AuthenticateResult.Fail($"Error {errorLocation}." + Environment.NewLine + exception.Message);
+            throw; // Re-throw the exception to avoid swallowing it
         }
+    }
 
-        private Task<string?> ParseApiKeyAsync()
+    private AuthenticateResult HandleError(string errorLocation, Exception exception)
+    {
+        Logger.LogError(exception, $"Error {errorLocation}.");
+        return AuthenticateResult.Fail($"Error {errorLocation}." + Environment.NewLine + exception.Message);
+    }
+
+    private Task<string?> ParseApiKeyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Options.KeyName))
         {
-            if (string.IsNullOrWhiteSpace(Options.KeyName))
-            {
-                return Task.FromResult<string?>(null);
-            }
-
-            if (Request.Headers.TryGetValue(Options.KeyName, out var headerValue))
-            {
-                return Task.FromResult(headerValue.FirstOrDefault());
-            }
-
-            if (Request.Query.TryGetValue(Options.KeyName, out var queryValue))
-            {
-                return Task.FromResult(queryValue.FirstOrDefault());
-            }
-
-            if (Request.Headers.TryGetValue(HeaderNames.Authorization, out var authHeaderValues) &&
-                AuthenticationHeaderValue.TryParse(authHeaderValues, out var authHeaderValue) &&
-                authHeaderValue.Scheme.Equals(Options.KeyName, StringComparison.OrdinalIgnoreCase))
-            {
-                return Task.FromResult(authHeaderValue.Parameter);
-            }
-
             return Task.FromResult<string?>(null);
         }
 
-        private async Task<AuthenticateResult?> ValidateUsingEventAsync(string apiKey)
+        if (Request.Headers.TryGetValue(Options.KeyName, out var headerValue))
         {
-            if (Events is null || Events.OnValidateKey is null)
-            {
-                return null;
-            }
-
-            var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
-            await Events.ValidateKeyAsync(validateKeyContext).ConfigureAwait(false);
-
-            return validateKeyContext.Result;
+            return Task.FromResult(headerValue.FirstOrDefault());
         }
 
-        private Task<AuthenticateResult?> ValidateConfigKeyAsync(string apiKey)
+        if (Request.Query.TryGetValue(Options.KeyName, out var queryValue))
         {
-            if (string.IsNullOrWhiteSpace(Options.ApiKey))
-            {
-                return Task.FromResult<AuthenticateResult?>(null);
-            }
+            return Task.FromResult(queryValue.FirstOrDefault());
+        }
 
-            var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
-            if (string.Equals(validateKeyContext.ApiKey, Options.ApiKey, StringComparison.OrdinalIgnoreCase))
-            {
-                validateKeyContext.ValidationSucceeded(validateKeyContext.Owner);
-                return Task.FromResult<AuthenticateResult?>(validateKeyContext.Result);
-            }
+        if (Request.Headers.TryGetValue(HeaderNames.Authorization, out var authHeaderValues) &&
+            AuthenticationHeaderValue.TryParse(authHeaderValues, out var authHeaderValue) &&
+            authHeaderValue.Scheme.Equals(Options.KeyName, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(authHeaderValue.Parameter);
+        }
 
+        return Task.FromResult<string?>(null);
+    }
+
+    private async Task<AuthenticateResult?> ValidateUsingEventAsync(string apiKey)
+    {
+        if (Events is null || Events.OnValidateKey is null)
+        {
+            return null;
+        }
+
+        var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
+        await Events.ValidateKeyAsync(validateKeyContext).ConfigureAwait(false);
+
+        return validateKeyContext.Result;
+    }
+
+    private Task<AuthenticateResult?> ValidateConfigKeyAsync(string apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(Options.ApiKey))
+        {
             return Task.FromResult<AuthenticateResult?>(null);
         }
 
-        private async Task<IApiKey?> ValidateUsingApiKeyProviderAsync(string apiKey)
+        var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
+        if (string.Equals(validateKeyContext.ApiKey, Options.ApiKey, StringComparison.OrdinalIgnoreCase))
         {
-            IApiKeyProvider? apiKeyProvider = null;
-
-            if (Options.ApiKeyProviderType is not null)
-            {
-                apiKeyProvider = ActivatorUtilities
-                    .GetServiceOrCreateInstance(Context.RequestServices, Options.ApiKeyProviderType)
-                    as IApiKeyProvider;
-            }
-
-            if (apiKeyProvider is null)
-            {
-                return null;
-            }
-
-            try
-            {
-                var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
-
-                return await apiKeyProvider
-                    .ProvideAsync(validateKeyContext.ApiKey, validateKeyContext.Owner)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                if (apiKeyProvider is IDisposable disposableApiKeyProvider)
-                {
-                    disposableApiKeyProvider.Dispose();
-                }
-            }
+            validateKeyContext.ValidationSucceeded(validateKeyContext.Owner);
+            return Task.FromResult<AuthenticateResult?>(validateKeyContext.Result);
         }
 
-        private AuthenticateResult ValidateApiKeyDetails(IApiKey validatedApiKey, string apiKey)
+        return Task.FromResult<AuthenticateResult?>(null);
+    }
+
+    private async Task<ApiKey?> ValidateUsingApiKeyProviderAsync(string apiKey)
+    {
+        IApiKeyProvider? apiKeyProvider = null;
+
+        if (Options.ApiKeyProviderType is not null)
         {
-            if (validatedApiKey.Origin is not null
-                && !validatedApiKey.Origin.Contains(Request.Headers.Origin.ToString()))
-            {
-                return HandleError("Origin",
-                    new InvalidOperationException(
-                        $"Origin {Request.Headers.Origin} not allowed by {nameof(IApiKeyProvider)}."));
-            }
-
-            if (!string.Equals(validatedApiKey.Key, apiKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return HandleError("API Key Provider",
-                    new InvalidOperationException($"Invalid API Key provided by {nameof(IApiKeyProvider)}."));
-            }
-
-            var principal = CipherKeyUtils
-                .BuildPrincipal(validatedApiKey.OwnerName, Scheme.Name, ClaimsIssuer, Options.Scope);
-            var ticket = new AuthenticationTicket(principal, Scheme.Name);
-
-            return AuthenticateResult.Success(ticket);
+            apiKeyProvider = ActivatorUtilities
+                .GetServiceOrCreateInstance(Context.RequestServices, Options.ApiKeyProviderType)
+                as IApiKeyProvider;
         }
 
-        private async Task<AuthenticateResult?> ValidateCorsAsync()
+        if (apiKeyProvider is null)
         {
-            var validatedApiCors = new CorsContext(Context, Scheme, Options, _corsService, _corsPolicyProvider);
-            await validatedApiCors.ValidateCorsAsync().ConfigureAwait(false);
-
-            return validatedApiCors.Result;
+            return null;
         }
 
-        private Task ParseOriginAsync()
+        try
         {
-            if (Request.Headers.TryGetValue("Origin", out var _))
+            var validateKeyContext = new ValidateKeyContext(Context, Scheme, Options, apiKey);
+
+            return await apiKeyProvider
+                .ProvideAsync(validateKeyContext.ApiKey, validateKeyContext.Owner)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            if (apiKeyProvider is IDisposable disposableApiKeyProvider)
             {
-                return Task.CompletedTask;
+                disposableApiKeyProvider.Dispose();
             }
+        }
+    }
 
-            if (Request.Headers.TryGetValue("X-Origin", out var xOrigin))
-            {
-                Request.Headers.Origin = xOrigin;
-                return Task.CompletedTask;
-            }
+    private AuthenticateResult ValidateApiKeyDetails(ApiKey validatedApiKey, string apiKey)
+    {
+        if (validatedApiKey.Origin is not null
+            && !validatedApiKey.Origin.Contains(Request.Headers.Origin.ToString()))
+        {
+            return HandleError("Origin",
+                new InvalidOperationException(
+                    $"Origin {Request.Headers.Origin} not allowed by {nameof(IApiKeyProvider)}."));
+        }
 
-            if (Request.Headers.TryGetValue("Referer", out var referer)
-                && Uri.TryCreate(referer, UriKind.Absolute, out var uriOrigin))
-            {
-                var refererOrigin = uriOrigin.Port == 80 || uriOrigin.Port == 443
-                    ? $"{uriOrigin.Scheme}://{uriOrigin.Host}"
-                    : $"{uriOrigin.Scheme}://{uriOrigin.Host}:{uriOrigin.Port}";
+        if (!string.Equals(validatedApiKey.Key, apiKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return HandleError("API Key Provider",
+                new InvalidOperationException($"Invalid API Key provided by {nameof(IApiKeyProvider)}."));
+        }
 
-                Request.Headers.Origin = refererOrigin;
-                return Task.CompletedTask;
-            }
+        var principal = CipherKeyUtils
+            .BuildPrincipal(validatedApiKey.OwnerName, Scheme.Name, ClaimsIssuer, Options.Scope);
+        var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
-            if (Request.Headers.TryGetValue("Postman-Token", out var _))
-            {
-                Request.Headers.Origin = "postman";
-                return Task.CompletedTask;
-            }
+        return AuthenticateResult.Success(ticket);
+    }
 
-            var requestIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-            if (!string.IsNullOrEmpty(requestIp))
-            {
-                Request.Headers.Origin = requestIp;
-                return Task.CompletedTask;
-            }
+    private async Task<AuthenticateResult?> ValidateCorsAsync()
+    {
+        var validatedApiCors = new CorsContext(Context, Scheme, Options, _corsService, _corsPolicyProvider);
+        await validatedApiCors.ValidateCorsAsync().ConfigureAwait(false);
 
-            Request.Headers.Origin = "unknown";
+        return validatedApiCors.Result;
+    }
+
+    private Task ParseOriginAsync()
+    {
+        if (Request.Headers.TryGetValue("Origin", out var _))
+        {
             return Task.CompletedTask;
         }
+
+        if (Request.Headers.TryGetValue("X-Origin", out var xOrigin))
+        {
+            Request.Headers.Origin = xOrigin;
+            return Task.CompletedTask;
+        }
+
+        if (Request.Headers.TryGetValue("Referer", out var referer)
+            && Uri.TryCreate(referer, UriKind.Absolute, out var uriOrigin))
+        {
+            var refererOrigin = uriOrigin.Port == 80 || uriOrigin.Port == 443
+                ? $"{uriOrigin.Scheme}://{uriOrigin.Host}"
+                : $"{uriOrigin.Scheme}://{uriOrigin.Host}:{uriOrigin.Port}";
+
+            Request.Headers.Origin = refererOrigin;
+            return Task.CompletedTask;
+        }
+
+        if (Request.Headers.TryGetValue("Postman-Token", out var _))
+        {
+            Request.Headers.Origin = "postman";
+            return Task.CompletedTask;
+        }
+
+        var requestIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrEmpty(requestIp))
+        {
+            Request.Headers.Origin = requestIp;
+            return Task.CompletedTask;
+        }
+
+        Request.Headers.Origin = "unknown";
+        return Task.CompletedTask;
     }
 }
