@@ -143,33 +143,30 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+builder.Services.AddAuthorizationBuilder()
+    .SetDefaultPolicy(new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes(CipherKeyDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser()
-        .Build();
-
-    options.AddPolicy("jwtPolicy", new AuthorizationPolicyBuilder()
+        .Build())
+    .AddPolicy("jwtPolicy", new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser()
-        .Build());
-
-    options.AddPolicy("msalPolicy", new AuthorizationPolicyBuilder()
+        .Build())
+    .AddPolicy("msalPolicy", new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes("oauth2")
         .RequireAuthenticatedUser()
-        .Build());
-
-    options.AddPolicy("apiKeyPolicy", new AuthorizationPolicyBuilder()
+        .Build())
+    .AddPolicy("apiKeyPolicy", new AuthorizationPolicyBuilder()
         .AddAuthenticationSchemes(CipherKeyDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser()
-        .Build());
-
-    options.AddPolicy("anyAuthPolicy", new AuthorizationPolicyBuilder()
-        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, CipherKeyDefaults.AuthenticationScheme, "oauth2")
+        .Build())
+    .AddPolicy("anyAuthPolicy", new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(
+            JwtBearerDefaults.AuthenticationScheme,
+            CipherKeyDefaults.AuthenticationScheme,
+            "oauth2")
         .RequireAuthenticatedUser()
         .Build());
-});
 
 var app = builder.Build();
 
