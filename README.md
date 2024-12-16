@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="icon.png" alt="CipherKey" width="92">
+  <h3 align="center">CipherKey</h3>
+  <p align="center">API Key Authentication System</p>
+</p>
+
+## Status
+
+[![NuGet Version](https://img.shields.io/nuget/v/cipherkey.svg)](https://img.shields.io/nuget/v/cipherkey.svg)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/cipherkey.svg)](https://www.nuget.org/packages/cipherkey)
+
 # CipherKey: API Key Authentication System
 
 CipherKey is a robust authentication system designed to secure your APIs using API keys. It provides a seamless and secure way to authenticate users and applications accessing your API endpoints. With CipherKey, you can ensure that only authorized entities can access your valuable resources, enhancing security and control over your API ecosystem.

@@ -14,6 +14,7 @@ CustomProfile.pubxml.user
 teste.pfx
 wwwroot/
 *launchSettings.json
+nuget.config
 
 # system files
 .DS_Store
